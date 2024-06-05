@@ -1,4 +1,10 @@
-#Lava stuffs
+"""
+Contains the method for mapping a ngclearn component to a lava component.
+This is mostly used as a helper method and should not be called by itself.
+
+This method does muddle the globals dictionary with uuids as they are needed
+for lava to bind processes to models.
+"""
 from lava.magma.core.process.process import AbstractProcess
 from lava.magma.core.process.variable import Var
 from lava.magma.core.sync.protocols.loihi_protocol import LoihiProtocol
@@ -13,7 +19,20 @@ from ngclearn import numpy as np
 
 import uuid
 
-def to_lava(source_obj, lag=False):
+def map_component(source_obj, lag=False):
+    """
+    Dynamically makes a lava process and a lava model class based off the source
+    object provided.
+
+    Args:
+        source_obj: The source object to model after
+
+        lag: is this is a lagging component (See lava context.set_lag() for more
+        details)
+
+    Returns: dynamic_process, dynamic_model
+
+    """
     (pure_fn, output_compartments, args, parameters, compartments) = parse(source_obj, "advance_state")
     args = []
     assert len(args) == 0
