@@ -5,10 +5,16 @@ builds a mirrored model using lava compatible processes and models.
 
 from ngclearn import Context
 from ngclava.mapping.component_mapper import map_component
-from lava.magma.core.process.variable import Var
-from ngcsimlib.logger import info, warn
+from ngcsimlib.logger import info, warn, critical
 from ngclearn import Compartment
 from ngclava import lava_compatible_env
+
+import json
+
+# Lava
+from lava.magma.core.process.variable import Var
+from lava.magma.core.run_conditions import RunSteps
+from lava.magma.core.run_configs import Loihi2SimCfg
 
 
 class LavaContext(Context):
@@ -58,11 +64,15 @@ class LavaContext(Context):
             return
 
         self._init_lava = True
+        self._in_runtime = False
+        self._exited_runtime = False
 
         self.dynamic_lava_processes = {}
         self.dynamic_lava_models = {}
         self.mapped_processes = {}
         self.lagging_components = {}
+
+        self._should_exit_runtime = False
 
     @property
     def updater(self):
@@ -74,16 +84,41 @@ class LavaContext(Context):
         self._rebuild_lava = lava_compatible_env()
         return self
 
+    @property
+    def runtime(self):
+        self.start_runtime()
+        self._should_exit_runtime = True
+        return self
+
+        if self._exited_runtime:
+            warn("Only one runtime can be run per execution")
+            return self
+        if self._in_runtime:
+            return self
+
+        self.start_runtime()
+        self._should_exit_runtime = True
+        return self
+
+
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self._rebuild_lava:
             self._rebuild_lava = False
             self.rebuild_lava()
+        if self._should_exit_runtime:
+            self.stop()
+            self._should_exit_runtime = False
+
         super().__exit__(exc_type, exc_val, exc_tb)
 
     def rebuild_lava(self):
         """
         Triggers a manual rebuild of the lava components
         """
+        if self._in_runtime:
+            warn("Stop your current runtime before rebuilding lava objects")
+            return
         if not lava_compatible_env():
             warn("The current environment is not compatible to build lava objects")
             return
@@ -91,6 +126,10 @@ class LavaContext(Context):
         self._update_dynamic_class()
         self._build_lava_processes()
         self._wire_lava_processes()
+
+        self._exited_runtime = False
+
+
 
     def set_lag(self, component, status=True):
         """
@@ -120,8 +159,10 @@ class LavaContext(Context):
         """
         if isinstance(component, str):
             self.lagging_components[component] = status
+            self._json_objects['components'][self.components[component].path]['lagging'] = status
         else:
             self.lagging_components[component.name] = status
+            self._json_objects['components'][component.path]['lagging'] = status
 
     def get_lava_components(self, *component_names, unwrap=True):
         """
@@ -146,7 +187,6 @@ class LavaContext(Context):
                 warn(f"Could not fine a lava component with the name \"{a}\" in the context")
         return _components if len(component_names) > 1 or not unwrap else _components[0]
 
-
     def write_to_ngc(self):
         """
         Copies all the current values of the lava model into the ngc model
@@ -156,6 +196,19 @@ class LavaContext(Context):
                 if isinstance(a, Var):
                     if Compartment.is_compartment(self.components[p_name].__dict__[a_name]):
                         self.components[p_name].__dict__[a_name].set(a.get())
+
+
+    def make_components(self, path_to_components_file, custom_file_dir=None):
+        comps = super().make_components(path_to_components_file, custom_file_dir)
+        with open(path_to_components_file, 'r') as file:
+            componentsConfig = json.load(file)
+            components = componentsConfig["components"]
+            _previous_model_name = "/".join(list(components.keys())[0].split("/")[:-1]) + "/"
+            for comp in comps:
+                if components[_previous_model_name + comp.name].get('lagging', False):
+                    self.set_lag(comp, True)
+
+
 
     def _update_dynamic_class(self):
         info("updating dynamic classes")
@@ -183,3 +236,122 @@ class LavaContext(Context):
                     source_component, source_compartment = source.name.split("/")
                     sor = self.mapped_processes[source_component].__dict__["_out_" + source_compartment]
                     dest.connect_from(sor)
+
+    def save_to_json(self, directory, model_name=None, custom_save=True, overwrite=False, skip_lava=False):
+        """
+        A wrapper for the default ngc context save_to_json, adds flag to skip pulling state from lava
+
+        Args:
+            directory: The top level directory to save the model to
+
+            model_name: The name of the model, if None or if there is already a
+                model with that name a uid will be used or appended to the name
+                respectively. (default: None)
+
+            custom_save: A boolean that if true will attempt to call the `save`
+                command if present on the controller (default: True)
+
+            overwrite: A boolean for if the saved model should be in a unique folder or if it should overwrite
+            existing folders (default: false)
+
+            skip_lava: Boolean to skip pulling current state from lava (default: false)
+
+        Returns:
+            a tuple where the first value is the path to the model, and the
+                second is the path to the custom save folder if custom_save is
+                true and None if false
+        """
+        if not skip_lava:
+            self.write_to_ngc()
+        return super().save_to_json(directory, model_name, custom_save, overwrite)
+
+    def _can_run(self, m_name):
+        return
+        if not self._in_runtime:
+            critical(f"Start a runtime with .start_runtime() to call {m_name}")
+
+
+    def set_up_runtime(self, core_component, rest_image):
+        """
+        A helper function to set up runtime commands centered around a specific
+        lava component (passed by name, or the actual lava component).
+
+        Adds the following methods to the lava context
+
+            start_runtime() -> None: Starts the lava runtime simulation
+
+            pause() -> None: Pauses the runtime simulation
+
+            stop() -> None: Stops the runtime simulation
+
+            run(t) -> None: Runs t steps of the runtime simulation, pauses upon completion
+
+            rest(t) -> None: Runs t steps of the runtime simulation after
+                clamping the rest_image using the clamp command found on the lavaContext
+                pauses upon completion (Clamp is not defined in setting up the runtime)
+
+            view(x, t) -> None: First clamps x using the clamp command found on the
+                lavaContext. Then runs t steps of the runtime simulation. Pauses
+                upon completion (Clamp is not defined in setting up the runtime)
+
+        Args:
+            core_component: The component that all the lava commands for the simulation
+                runtime will be called from. (Controls which processes will be used)
+
+            rest_image: The image to be clamped while the model is in its reset state
+        """
+
+        if not hasattr(self, "clamp"):
+            warn(f"Clamp method is missing from {self.name}, "
+                 f"some generated methods will not function without it")
+        if isinstance(core_component, str):
+            cc = self.get_lava_components(core_component)
+        else:
+            cc = core_component
+
+        with self:
+            @self.dynamicCommand
+            def pause():
+                self._can_run("pause")
+                cc.pause()
+
+            @self.dynamicCommand
+            def stop():
+                self._can_run("stop")
+                cc.stop()
+                self._in_runtime = False
+                self._exited_runtime = True
+
+
+            @self.dynamicCommand
+            def run(t):
+                self._can_run("run")
+                cc.run(condition=RunSteps(num_steps=t), run_cfg=Loihi2SimCfg())
+                self.pause()
+
+            @self.dynamicCommand
+            def rest(t):
+                self._can_run("rest")
+                self.clamp(rest_image)
+                self.run(t)
+
+            @self.dynamicCommand
+            def view(x, t):
+                self._can_run("view")
+                self.clamp(x)
+                self.run(t)
+
+            @self.dynamicCommand
+            def start_runtime():
+                self._in_runtime = True
+                self.run(0)
+                return
+                if self._in_runtime:
+                    warn("Already in runtime")
+                    return
+                if self._exited_runtime:
+                    warn("Only one runtime can be run")
+                    return
+                self._in_runtime = True
+                self.run(0)
+
