@@ -1,12 +1,12 @@
-[![Python Version](https://img.shields.io/badge/python-3.10%20%7C%203.11-blue.svg)](https://www.python.org/downloads)[![License](https://img.shields.io/badge/License-BSD_3--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://GitHub.com/Naereen/StrapDown.js/graphs/commit-activity)
+[![Python Version](https://img.shields.io/badge/python-3.8%20%7C%203.3.9%20%7C%203.3.10%20%7C%203.11-blue.svg)](https://www.python.org/downloads)[![License](https://img.shields.io/badge/License-BSD_3--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://GitHub.com/Naereen/StrapDown.js/graphs/commit-activity)
 
 # NGC-Lava: Neuromorphic Models with NGC-Learn and Loihi 2
 
 <b>ngc-lava</b> is a public repository for
 <i><a href="https://github.com/NACLab/ngc-learn/">ngc-learn</a></i> support for 
-converting and running models in the Loihi 2 Lava framework. This set of tools 
-is useful for prototyping spiking neural network models in ngc-learn and then 
-translating these to work in Lava simulation and/or on-chip.
+converting models to (and running them) in the Loihi 2 Lava framework. This set 
+of tools is useful for prototyping spiking neural network models in ngc-learn 
+and then translating these to work in the Lava simulator and/or on-chip.
 
 For official walkthroughs going over the model exhibits found in this repo, please
 visit the ngc-learn documentation page: https://ngc-learn.readthedocs.io/. 
