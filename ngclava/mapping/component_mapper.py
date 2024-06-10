@@ -40,6 +40,15 @@ def map_component(source_obj, lag=False):
                 **{c: source_obj.__dict__[c].value for _, c in compartments},
                 **{oc: source_obj.__dict__[oc].value for oc in output_compartments}}
 
+    try:
+        (pure_reset, output_compartments_reset, args_reset, parameters_reset, compartments_reset) = parse(source_obj, "reset")
+        param_locs_reset = [loc for loc, _ in parameters_reset]
+        assert (len(compartments_reset)) == 0
+    except:
+        (pure_reset, output_compartments_reset, args_reset, parameters_reset, compartments_reset) = None, None, None, None, None
+
+
+
     class dynamic_lava_process(AbstractProcess):
         def __init__(self, source_object, **kwargs):
             super().__init__(**kwargs)
@@ -57,6 +66,19 @@ def map_component(source_obj, lag=False):
             for oc in output_compartments:
                 self.__dict__["_out_" + oc] = OutPort(shape=self.__dict__[oc].shape)
 
+        def reset(self):
+            if pure_reset is None:
+                return
+            fargs = []
+            _param_loc = 0
+            for i in range(len(param_locs_reset)):
+                if i in param_locs:
+                    fargs.append(source_obj.__dict__[parameters_reset[_param_loc][1]])
+                    _param_loc += 1
+
+            vals = pure_reset.__func__(*fargs)
+            for key, v in zip(output_compartments_reset, vals):
+                self.__dict__[key] = Var(v.shape if hasattr(v, 'shape') else (1,), v, name=key)
 
     comps_locs = [loc for loc, _ in compartments]
     param_locs = [loc for loc, _ in parameters]

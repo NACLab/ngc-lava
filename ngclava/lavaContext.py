@@ -86,10 +86,6 @@ class LavaContext(Context):
 
     @property
     def runtime(self):
-        self.start_runtime()
-        self._should_exit_runtime = True
-        return self
-
         if self._exited_runtime:
             warn("Only one runtime can be run per execution")
             return self
@@ -103,16 +99,16 @@ class LavaContext(Context):
 
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if self._rebuild_lava:
-            self._rebuild_lava = False
-            self.rebuild_lava()
-        if self._should_exit_runtime:
-            self.stop()
-            self._should_exit_runtime = False
-
         super().__exit__(exc_type, exc_val, exc_tb)
 
-    def rebuild_lava(self):
+        if self._rebuild_lava:
+            self.rebuild_lava()
+        if self._should_exit_runtime:
+            self._should_exit_runtime = False
+            self.stop()
+
+
+    def rebuild_lava(self, toggle_off=True):
         """
         Triggers a manual rebuild of the lava components
         """
@@ -128,8 +124,8 @@ class LavaContext(Context):
         self._wire_lava_processes()
 
         self._exited_runtime = False
-
-
+        if toggle_off:
+            self._rebuild_lava = False
 
     def set_lag(self, component, status=True):
         """
@@ -261,17 +257,16 @@ class LavaContext(Context):
                 second is the path to the custom save folder if custom_save is
                 true and None if false
         """
-        if not skip_lava:
+        if not skip_lava and self._in_runtime:
             self.write_to_ngc()
         return super().save_to_json(directory, model_name, custom_save, overwrite)
 
     def _can_run(self, m_name):
-        return
         if not self._in_runtime:
             critical(f"Start a runtime with .start_runtime() to call {m_name}")
 
 
-    def set_up_runtime(self, core_component, rest_image):
+    def set_up_runtime(self, core_component, rest_image=None):
         """
         A helper function to set up runtime commands centered around a specific
         lava component (passed by name, or the actual lava component).
@@ -298,7 +293,7 @@ class LavaContext(Context):
             core_component: The component that all the lava commands for the simulation
                 runtime will be called from. (Controls which processes will be used)
 
-            rest_image: The image to be clamped while the model is in its reset state
+            rest_image: The image to be clamped while the model is in its reset state (default: None)
         """
 
         if not hasattr(self, "clamp"):
@@ -329,11 +324,12 @@ class LavaContext(Context):
                 cc.run(condition=RunSteps(num_steps=t), run_cfg=Loihi2SimCfg())
                 self.pause()
 
-            @self.dynamicCommand
-            def rest(t):
-                self._can_run("rest")
-                self.clamp(rest_image)
-                self.run(t)
+            if rest_image is not None:
+                @self.dynamicCommand
+                def rest(t):
+                    self._can_run("rest")
+                    self.clamp(rest_image)
+                    self.run(t)
 
             @self.dynamicCommand
             def view(x, t):
@@ -343,9 +339,6 @@ class LavaContext(Context):
 
             @self.dynamicCommand
             def start_runtime():
-                self._in_runtime = True
-                self.run(0)
-                return
                 if self._in_runtime:
                     warn("Already in runtime")
                     return
