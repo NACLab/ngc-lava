@@ -8,14 +8,15 @@ converting models to (and running them) in the Loihi 2 Lava framework. This set
 of tools is useful for prototyping spiking neural network models in ngc-learn 
 and then translating these to work in the Lava simulator and/or on-chip.
 
-For official walkthroughs going over the model exhibits found in this repo, please
-visit the ngc-learn documentation page: https://ngc-learn.readthedocs.io/. 
+For official walkthroughs/lessons on how to use this set of tools with 
+ngc-learn and Lava, please visit the ngc-learn documentation page: 
+https://ngc-learn.readthedocs.io/. 
 For information, including anything related 
 to usage instructions and details related to ngc-learn itself, please refer to
 the official ngc-learn <a href="https://github.com/NACLab/ngc-learn/">repo</a> (and
 its <a href="https://ngc-learn.readthedocs.io/">documentation</a>).
 
 This package is distributed under the 3-Clause BSD license.<br>
-It is currently maintained by the
+It is currently maintained by the 
 <a href="https://www.cs.rit.edu/~ago/nac_lab.html">Neural Adaptive Computing
 (NAC) laboratory</a>.
