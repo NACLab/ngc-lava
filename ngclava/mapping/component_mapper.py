@@ -42,8 +42,6 @@ def map_component(source_obj, lag=False):
 
     try:
         (pure_reset, output_compartments_reset, args_reset, parameters_reset, compartments_reset) = parse(source_obj, "reset")
-        param_locs_reset = [loc for loc, _ in parameters_reset]
-        assert (len(compartments_reset)) == 0
     except:
         (pure_reset, output_compartments_reset, args_reset, parameters_reset, compartments_reset) = None, None, None, None, None
 
@@ -69,19 +67,13 @@ def map_component(source_obj, lag=False):
         def reset(self):
             if pure_reset is None:
                 return
-            fargs = []
-            _param_loc = 0
-            for i in range(len(param_locs_reset)):
-                if i in param_locs:
-                    fargs.append(source_obj.__dict__[parameters_reset[_param_loc][1]])
-                    _param_loc += 1
 
-            vals = pure_reset.__func__(*fargs)
+            funParams = {narg: source_obj.__dict__[narg] for _, narg in list(parameters_reset)}
+            funComps = {narg: self.__dict__[narg] for _, narg in list(compartments_reset)}
+
+            vals = pure_reset.__func__(**funParams, **funComps)
             for key, v in zip(output_compartments_reset, vals):
                 self.__dict__[key] = Var(v.shape if hasattr(v, 'shape') else (1,), v, name=key)
-
-    comps_locs = [loc for loc, _ in compartments]
-    param_locs = [loc for loc, _ in parameters]
 
     @implements(proc=dynamic_lava_process, protocol=LoihiProtocol)
     @requires(CPU)
@@ -99,18 +91,16 @@ def map_component(source_obj, lag=False):
                     self.__dict__[comp] = self.__dict__["_inp_" + comp].recv()
 
             #Run Dynamics
-            fargs = []
             _param_loc = 0
             _comps_loc = 0
-            for i in range(len(param_locs) + len(comps_locs)):
-                if i in param_locs:
-                    fargs.append(self.__dict__[parameters[_param_loc][1]])
-                    _param_loc += 1
-                else:
-                    fargs.append(self.__dict__[compartments[_comps_loc][1]])
-                    _comps_loc += 1
 
-            vals = pure_fn.__func__(*fargs)
+            funParams = {narg: self.__dict__[narg] for _, narg in list(parameters)}
+            funComps = {narg: self.__dict__[narg] for _, narg in list(compartments)}
+
+            vals = pure_fn.__func__(**funParams, **funComps)
+            if len(output_compartments) == 1:
+                vals = [vals]
+
             for key, v in zip(output_compartments, vals):
                 self.__dict__[key] = v
 
