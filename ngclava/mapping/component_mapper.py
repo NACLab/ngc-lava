@@ -73,7 +73,8 @@ def map_component(source_obj, lag=False):
 
             vals = pure_reset.__func__(**funParams, **funComps)
             for key, v in zip(output_compartments_reset, vals):
-                self.__dict__[key] = Var(v.shape if hasattr(v, 'shape') else (1,), v, name=key)
+                # self.__dict__[key] = Var(v.shape if hasattr(v, 'shape') else (1,), v, name=key)
+                self.__dict__[key].set(v)
 
     @implements(proc=dynamic_lava_process, protocol=LoihiProtocol)
     @requires(CPU)
