@@ -36,8 +36,8 @@ def map_component(source_obj, lag=False):
     (pure_fn, output_compartments, args, parameters, compartments) = parse(source_obj, "advance_state")
     args = []
     assert len(args) == 0
-    all_vals = {**{p: source_obj.__dict__[p] for _, p in parameters},
-                **{c: source_obj.__dict__[c].value for _, c in compartments},
+    all_vals = {**{p: source_obj.__dict__[p] for p in parameters},
+                **{c: source_obj.__dict__[c].value for c in compartments},
                 **{oc: source_obj.__dict__[oc].value for oc in output_compartments}}
 
     try:
@@ -68,8 +68,8 @@ def map_component(source_obj, lag=False):
             if pure_reset is None:
                 return
 
-            funParams = {narg: source_obj.__dict__[narg] for _, narg in list(parameters_reset)}
-            funComps = {narg: self.__dict__[narg] for _, narg in list(compartments_reset)}
+            funParams = {narg: source_obj.__dict__[narg] for narg in list(parameters_reset)}
+            funComps = {narg: self.__dict__[narg] for narg in list(compartments_reset)}
 
             vals = pure_reset.__func__(**funParams, **funComps)
             for key, v in zip(output_compartments_reset, vals):
@@ -87,7 +87,7 @@ def map_component(source_obj, lag=False):
                     self.__dict__["_out_" + oc].send(np.reshape(self.__dict__[oc], source_obj.__dict__[oc].value.shape))
 
             #Gather
-            for _, comp in compartments:
+            for comp in compartments:
                 if hasattr(self, "_inp_" + comp):
                     self.__dict__[comp] = self.__dict__["_inp_" + comp].recv()
 
@@ -95,8 +95,8 @@ def map_component(source_obj, lag=False):
             _param_loc = 0
             _comps_loc = 0
 
-            funParams = {narg: self.__dict__[narg] for _, narg in list(parameters)}
-            funComps = {narg: self.__dict__[narg] for _, narg in list(compartments)}
+            funParams = {narg: self.__dict__[narg] for narg in list(parameters)}
+            funComps = {narg: self.__dict__[narg] for narg in list(compartments)}
 
             vals = pure_fn.__func__(**funParams, **funComps)
             if len(output_compartments) == 1:
